@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"angular.enable-strict-mode-prompt": false,
+		"prettier.requireConfig": true,
+		"editor.tabSize": 4,
+		"editor.detectIndentation": false,
+		"editor.insertSpaces": false,
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSaveMode": "file"
+	}
+}

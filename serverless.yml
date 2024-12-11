@@ -1,0 +1,559 @@
+frameworkVersion: '4'
+org: zanaaziz
+app: exercisely
+service: exercisely
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: eu-west-1
+  environment:
+    DYNAMODB_TABLE: ${self:custom.tableName.${sls:stage}}
+    IMAGES_BUCKET: ${self:service}-${sls:stage}-images
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchWriteItem
+            - dynamodb:BatchGetItem
+          Resource:
+            - 'arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMODB_TABLE}'
+            - 'arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMODB_TABLE}/index/*'
+        - Effect: Allow
+          Action:
+            - cognito-idp:*
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Resource: 'arn:aws:s3:::${self:service}-${sls:stage}-images/*'
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource: 'arn:aws:ssm:eu-west-1:*:parameter/openai/api_key'
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - 'Content-Type'
+        - 'Authorization'
+      allowedMethods:
+        - 'OPTIONS'
+        - 'GET'
+        - 'POST'
+        - 'PUT'
+        - 'PATCH'
+        - 'DELETE'
+    authorizers:
+      CognitoAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl:
+          Fn::Sub: 'https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPoolExercisely}'
+        audience:
+          - { Ref: CognitoUserPoolClient }
+
+functions:
+  register:
+    handler: src/handlers/auth-handler.register
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/register
+          method: post
+
+  login:
+    handler: src/handlers/auth-handler.login
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/login
+          method: post
+
+  confirmEmail:
+    handler: src/handlers/auth-handler.confirmEmail
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/register/confirm-email
+          method: post
+
+  resendRegisterConfirmationCode:
+    handler: src/handlers/auth-handler.resendRegisterConfirmationCode
+    environment:
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/register/resend-code
+          method: post
+
+  postConfirmation:
+    handler: src/handlers/auth-handler.postConfirmation
+    events:
+      - cognitoUserPool:
+          pool: Exercisely
+          trigger: PostConfirmation
+
+  refreshToken:
+    handler: src/handlers/auth-handler.refreshToken
+    environment:
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/refresh-token
+          method: post
+
+  forgotPassword:
+    handler: src/handlers/auth-handler.forgotPassword
+    environment:
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/forgot-password
+          method: post
+
+  confirmForgotPassword:
+    handler: src/handlers/auth-handler.confirmForgotPassword
+    environment:
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /auth/forgot-password/confirm
+          method: post
+
+  getProfilePhotoUploadUrl:
+    handler: src/handlers/user-handler.getProfilePhotoUploadUrl
+    events:
+      - httpApi:
+          path: /users/me/profile-photo-upload-url
+          method: get
+          authorizer: CognitoAuthorizer
+
+  getCoverPhotoUploadUrl:
+    handler: src/handlers/user-handler.getCoverPhotoUploadUrl
+    events:
+      - httpApi:
+          path: /users/me/cover-photo-upload-url
+          method: get
+          authorizer: CognitoAuthorizer
+
+  updateProfilePhoto:
+    handler: src/handlers/user-handler.updateProfilePhoto
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+    events:
+      - httpApi:
+          path: /users/me/profile-photo
+          method: put
+          authorizer: CognitoAuthorizer
+
+  updateCoverPhoto:
+    handler: src/handlers/user-handler.updateCoverPhoto
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+    events:
+      - httpApi:
+          path: /users/me/cover-photo
+          method: put
+          authorizer: CognitoAuthorizer
+
+  getUser:
+    handler: src/handlers/user-handler.getUser
+    events:
+      - httpApi:
+          path: /users/me
+          method: get
+          authorizer: CognitoAuthorizer
+
+  getAllUsers:
+    handler: src/handlers/user-handler.getAllUsers
+    events:
+      - httpApi:
+          path: /users
+          method: get
+          authorizer: CognitoAuthorizer
+
+  updateUser:
+    handler: src/handlers/user-handler.updateUser
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+    events:
+      - httpApi:
+          path: /users/me
+          method: patch
+          authorizer: CognitoAuthorizer
+
+  patchPassword:
+    handler: src/handlers/user-handler.patchPassword
+    events:
+      - httpApi:
+          path: /users/me/password
+          method: patch
+          authorizer: CognitoAuthorizer
+
+  patchEmail:
+    handler: src/handlers/user-handler.patchEmail
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+    events:
+      - httpApi:
+          path: /users/me/email
+          method: patch
+          authorizer: CognitoAuthorizer
+
+  verifyEmail:
+    handler: src/handlers/user-handler.verifyEmail
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+    events:
+      - httpApi:
+          path: /users/me/email/verify
+          method: post
+          authorizer: CognitoAuthorizer
+
+  resendPatchEmaillVerificationCode:
+    handler: src/handlers/auth-handler.resendPatchEmaillVerificationCode
+    environment:
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+    events:
+      - httpApi:
+          path: /users/me/email/resend-code
+          method: post
+
+  deleteUser:
+    handler: src/handlers/user-handler.deleteUser
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+    events:
+      - httpApi:
+          path: /users/me
+          method: delete
+          authorizer: CognitoAuthorizer
+
+  getUserById:
+    handler: src/handlers/user-handler.getUserById
+    events:
+      - httpApi:
+          path: /users/{userId}
+          method: get
+          authorizer: CognitoAuthorizer
+
+  getAllExercises:
+    handler: src/handlers/exercise-handler.getAllExercises
+    environment:
+      COGNITO_USER_POOL_ID: { Ref: CognitoUserPoolExercisely }
+      COGNITO_CLIENT_ID:
+        Fn::GetAtt:
+          - CognitoUserPoolClient
+          - ClientId
+      OPENAI_API_KEY: ${ssm:/openai/api_key}
+    events:
+      - httpApi:
+          path: /exercises
+          method: get
+
+  createLike:
+    handler: src/handlers/like-handler.createLike
+    events:
+      - httpApi:
+          path: /likes
+          method: post
+          authorizer: CognitoAuthorizer
+
+  deleteLike:
+    handler: src/handlers/like-handler.deleteLike
+    events:
+      - httpApi:
+          path: /likes
+          method: delete
+          authorizer: CognitoAuthorizer
+
+  createComment:
+    handler: src/handlers/comment-handler.createComment
+    events:
+      - httpApi:
+          path: /comments
+          method: post
+          authorizer: CognitoAuthorizer
+
+  deleteComment:
+    handler: src/handlers/comment-handler.deleteComment
+    events:
+      - httpApi:
+          path: /comments
+          method: delete
+          authorizer: CognitoAuthorizer
+
+  getComments:
+    handler: src/handlers/comment-handler.getComments
+    events:
+      - httpApi:
+          path: /comments
+          method: get
+
+  createList:
+    handler: src/handlers/list-handler.createList
+    events:
+      - httpApi:
+          path: /lists
+          method: post
+          authorizer: CognitoAuthorizer
+
+  getLists:
+    handler: src/handlers/list-handler.getLists
+    events:
+      - httpApi:
+          path: /lists
+          method: get
+          authorizer: CognitoAuthorizer
+
+  updateList:
+    handler: src/handlers/list-handler.updateList
+    events:
+      - httpApi:
+          path: /lists
+          method: patch
+          authorizer: CognitoAuthorizer
+
+  deleteList:
+    handler: src/handlers/list-handler.deleteList
+    events:
+      - httpApi:
+          path: /lists
+          method: delete
+          authorizer: CognitoAuthorizer
+
+  addExerciseToList:
+    handler: src/handlers/list-handler.addExerciseToList
+    events:
+      - httpApi:
+          path: /lists/{listId}/exercises
+          method: post
+          authorizer: CognitoAuthorizer
+
+  removeExerciseFromList:
+    handler: src/handlers/list-handler.removeExerciseFromList
+    events:
+      - httpApi:
+          path: /lists/{listId}/exercises
+          method: delete
+          authorizer: CognitoAuthorizer
+
+  createFollower:
+    handler: src/handlers/follower-handler.createFollower
+    events:
+      - httpApi:
+          path: /followers
+          method: post
+          authorizer: CognitoAuthorizer
+
+  deleteFollower:
+    handler: src/handlers/follower-handler.deleteFollower
+    events:
+      - httpApi:
+          path: /followers
+          method: delete
+          authorizer: CognitoAuthorizer
+
+  getFollowers:
+    handler: src/handlers/follower-handler.getFollowers
+    events:
+      - httpApi:
+          path: /followers
+          method: get
+
+resources:
+  Resources:
+    MyTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: GSI1PK
+            AttributeType: S
+          - AttributeName: GSI1SK
+            AttributeType: S
+          - AttributeName: GSI3PK
+            AttributeType: S
+          - AttributeName: GSI3SK
+            AttributeType: S
+          - AttributeName: GSI4PK
+            AttributeType: S
+          - AttributeName: GSI4SK
+            AttributeType: S
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: GSI1
+            KeySchema:
+              - AttributeName: GSI1PK
+                KeyType: HASH
+              - AttributeName: GSI1SK
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: GSI2
+            KeySchema:
+              - AttributeName: SK
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: GSI3
+            KeySchema:
+              - AttributeName: GSI3PK
+                KeyType: HASH
+              - AttributeName: GSI3SK
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: GSI4
+            KeySchema:
+              - AttributeName: GSI4PK
+                KeyType: HASH
+              - AttributeName: GSI4SK
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    ImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-${sls:stage}-images
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          IgnorePublicAcls: false
+          BlockPublicPolicy: false
+          RestrictPublicBuckets: false
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedMethods:
+                - 'PUT'
+                - 'GET'
+              AllowedHeaders:
+                - '*'
+              MaxAge: 3000
+
+    ImagesBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: ${self:service}-${sls:stage}-images
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: 'arn:aws:s3:::${self:service}-${sls:stage}-images/*'
+
+    CognitoUserPoolExercisely:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:service}-${sls:stage}-user-pool
+        AliasAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+            RequireUppercase: true
+        Schema:
+          - Name: email
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+          - Name: name
+            AttributeDataType: String
+            Mutable: true
+            Required: false
+        EmailVerificationSubject: 'Verification code for your Exercisely account'
+        EmailVerificationMessage: 'Please enter the following verification code in Exercisely when prompted: {####}'
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:service}-${sls:stage}-client
+        UserPoolId: { Ref: CognitoUserPoolExercisely }
+        GenerateSecret: false
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthFlows:
+          - implicit
+        AllowedOAuthScopes:
+          - email
+          - openid
+          - profile
+        CallbackURLs:
+          - https://exercisely-frontend.s3-website-eu-west-1.amazonaws.com
+        SupportedIdentityProviders:
+          - COGNITO
+        ExplicitAuthFlows:
+          - USER_PASSWORD_AUTH
+
+plugins:
+  - serverless-dynamodb
+  - serverless-offline
+  - ./serverless-s3-cleaner
+
+custom:
+  tableName:
+    dev: ${self:service}-dev
+    prod: ${self:service}-prod
+  serverless-dynamodb:
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true

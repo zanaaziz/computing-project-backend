@@ -1,0 +1,37 @@
+{
+  "name": "computing-project-backend",
+  "version": "1.0.0",
+  "main": "handler.ts",
+  "scripts": {
+    "db": "serverless dynamodb install",
+    "seed": "IS_OFFLINE=true ts-node src/scripts/seed-script.ts",
+    "seed:aws": "IS_OFFLINE=false AWS_REGION=eu-west-1 ts-node src/scripts/seed-script.ts",
+    "start": "serverless offline start --stage dev",
+    "deploy": "serverless deploy --stage dev"
+  },
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.797.0",
+    "@aws-sdk/client-dynamodb": "^3.788.0",
+    "@aws-sdk/client-s3": "^3.798.0",
+    "@aws-sdk/lib-dynamodb": "^3.789.0",
+    "@aws-sdk/s3-request-presigner": "^3.798.0",
+    "aws-jwt-verify": "^5.0.0",
+    "joi": "^17.13.3",
+    "jwt-decode": "^4.0.0",
+    "openai": "^4.98.0",
+    "serverless-dynamodb": "^0.2.56",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.149",
+    "@types/node": "^22.14.1",
+    "@types/uuid": "^10.0.0",
+    "serverless-offline": "^14.4.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": "^20.16.0",
+    "npm": "^10.8.1"
+  }
+}

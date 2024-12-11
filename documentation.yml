@@ -1,0 +1,1835 @@
+openapi: 3.0.0
+info:
+  title: Exercisely API
+  version: 1.0.0
+  description: API for Exercisely, providing endpoints for user authentication, exercise browsing, social interactions, and list management.
+
+servers:
+  - url: https://api.exercisely.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: Endpoints related to user authentication and account management
+  - name: Users
+    description: Endpoints for managing user profiles and settings
+  - name: Exercises
+    description: Endpoints for browsing and filtering exercises
+  - name: Likes
+    description: Endpoints for liking and unliking exercises
+  - name: Comments
+    description: Endpoints for posting and managing comments on exercises
+  - name: Lists
+    description: Endpoints for creating and managing custom exercise lists
+  - name: Followers
+    description: Endpoints for following users or lists
+
+paths:
+  # Authentication Endpoints
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: Registers a new user with Cognito and initiates email verification.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  minLength: 8
+                  description: User's password (min 8 characters)
+                name:
+                  type: string
+                  description: User's display name
+              required:
+                - email
+                - password
+                - name
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'User registered successfully. Please verify your email.'
+        '400':
+          description: Bad request (e.g., invalid input)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      summary: Log in a user
+      description: Authenticates a user with Cognito and returns tokens and user info.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  minLength: 8
+                  description: User's password
+              required:
+                - email
+                - password
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Bad request (e.g., invalid credentials)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register/confirm-email:
+    post:
+      summary: Confirm email with verification code
+      description: Confirms a user's email using the verification code sent by Cognito.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                code:
+                  type: string
+                  description: Verification code sent to email
+              required:
+                - email
+                - code
+      responses:
+        '200':
+          description: Email confirmed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Email confirmed successfully'
+        '400':
+          description: Bad request (e.g., invalid code)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register/resend-code:
+    post:
+      summary: Resend email confirmation code
+      description: Resends the verification code for email confirmation during sign-up.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+              required:
+                - email
+      responses:
+        '200':
+          description: Confirmation code resent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Confirmation code resent successfully.'
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh-token:
+    post:
+      summary: Refresh authentication tokens
+      description: Refreshes access and ID tokens using a refresh token.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token from previous authentication
+              required:
+                - refreshToken
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  idToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '400':
+          description: Bad request (e.g., invalid refresh token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/forgot-password:
+    post:
+      summary: Initiate password reset
+      description: Sends a verification code to the user's email for password reset.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+              required:
+                - email
+      responses:
+        '200':
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Verification code sent to your email.'
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/forgot-password/confirm:
+    post:
+      summary: Confirm password reset
+      description: Resets the user's password using the verification code.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                verificationCode:
+                  type: string
+                  description: Verification code sent to email
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: New password (min 8 characters)
+              required:
+                - email
+                - verificationCode
+                - newPassword
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Password has been reset successfully.'
+        '400':
+          description: Bad request (e.g., invalid code)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # User Endpoints
+  /users/me:
+    get:
+      summary: Get current user's profile
+      description: Retrieves the profile of the authenticated user.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request (e.g., missing identity)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update current user's profile
+      description: Updates the authenticated user's name.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: New display name
+              required:
+                - name
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'User updated successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete current user's account
+      description: Permanently deletes the authenticated user's account and data.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'User account deleted successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/profile-photo-upload-url:
+    get:
+      summary: Get profile photo upload URL
+      description: Generates a presigned URL for uploading a profile photo to S3.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        '200':
+          description: Upload URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                    description: Presigned URL for S3 upload
+                  key:
+                    type: string
+                    description: S3 object key
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/profile-photo:
+    put:
+      summary: Update profile photo URL
+      description: Updates the user's profile photo URL after upload.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                  description: S3 object key of the uploaded photo
+              required:
+                - key
+      responses:
+        '200':
+          description: Profile photo updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Profile photo updated'
+        '400':
+          description: Bad request (e.g., invalid key)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/cover-photo-upload-url:
+    get:
+      summary: Get cover photo upload URL
+      description: Generates a presigned URL for uploading a cover photo to S3.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        '200':
+          description: Upload URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                    description: Presigned URL for S3 upload
+                  key:
+                    type: string
+                    description: S3 object key
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/cover-photo:
+    put:
+      summary: Update cover photo URL
+      description: Updates the user's cover photo URL after upload.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                  description: S3 object key of the uploaded photo
+              required:
+                - key
+      responses:
+        '200':
+          description: Cover photo updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Cover photo updated'
+        '400':
+          description: Bad request (e.g., invalid key)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{userId}:
+    get:
+      summary: Get user by ID
+      description: Retrieves a user's profile by their user ID.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: ID of the user to retrieve
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/password:
+    patch:
+      summary: Update user password
+      description: Updates the authenticated user's password.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPassword:
+                  type: string
+                  minLength: 8
+                  description: Current password
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: New password
+              required:
+                - currentPassword
+                - newPassword
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Password updated successfully'
+        '400':
+          description: Bad request (e.g., invalid password)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/email:
+    patch:
+      summary: Initiate email update
+      description: Initiates an email update by sending a verification code.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newEmail:
+                  type: string
+                  format: email
+                  description: New email address
+              required:
+                - newEmail
+      responses:
+        '200':
+          description: Email update initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Verification code sent to new email'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/email/verify:
+    post:
+      summary: Verify email update
+      description: Verifies the new email address with a code.
+      tags:
+        - Users
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newEmail:
+                  type: string
+                  format: email
+                  description: New email address
+                verificationCode:
+                  type: string
+                  description: Verification code sent to new email
+              required:
+                - newEmail
+                - verificationCode
+      responses:
+        '200':
+          description: Email updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Email updated successfully'
+        '400':
+          description: Bad request (e.g., invalid code)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/email/resend-code:
+    post:
+      summary: Resend email verification code
+      description: Resends the verification code for email update.
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Verification code resent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Email verification code resent successfully.'
+        '400':
+          description: Bad request (e.g., invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Exercise Endpoints
+  /exercises:
+    get:
+      summary: Get all exercises with filters
+      description: Retrieves a list of exercises with optional filtering and pagination.
+      tags:
+        - Exercises
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Filter by exercise name
+        - in: query
+          name: force
+          schema:
+            type: string
+            enum:
+              - static
+              - pull
+              - push
+          description: Filter by force type
+        - in: query
+          name: level
+          schema:
+            type: string
+            enum:
+              - beginner
+              - intermediate
+              - expert
+          description: Filter by difficulty level
+        - in: query
+          name: mechanic
+          schema:
+            type: string
+            enum:
+              - isolation
+              - compound
+          description: Filter by mechanic
+        - in: query
+          name: equipment
+          schema:
+            type: string
+            enum:
+              - medicine ball
+              - dumbbell
+              - body only
+              - bands
+              - kettlebells
+              - foam roll
+              - cable
+              - machine
+              - barbell
+              - exercise ball
+              - e-z curl bar
+              - other
+          description: Filter by equipment
+        - in: query
+          name: muscle
+          schema:
+            type: string
+            enum:
+              - abdominals
+              - abductors
+              - adductors
+              - biceps
+              - calves
+              - chest
+              - forearms
+              - glutes
+              - hamstrings
+              - lats
+              - lower back
+              - middle back
+              - neck
+              - quadriceps
+              - shoulders
+              - traps
+              - triceps
+          description: Filter by muscle (checks primary and secondary)
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum:
+              - powerlifting
+              - strength
+              - stretching
+              - cardio
+              - olympic weightlifting
+              - strongman
+              - plyometrics
+          description: Filter by category
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for pagination
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+      responses:
+        '200':
+          description: List of exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exercise'
+        '400':
+          description: Bad request (e.g., invalid filters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Like Endpoints
+  /likes:
+    post:
+      summary: Like an exercise
+      description: Allows a user to like an exercise.
+      tags:
+        - Likes
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exerciseId:
+                  type: string
+                  description: ID of the exercise to like
+              required:
+                - exerciseId
+      responses:
+        '201':
+          description: Exercise liked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Exercise liked successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Unlike an exercise
+      description: Removes a user's like from an exercise.
+      tags:
+        - Likes
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exerciseId:
+                  type: string
+                  description: ID of the exercise to unlike
+              required:
+                - exerciseId
+      responses:
+        '200':
+          description: Exercise unliked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Exercise unliked successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Comment Endpoints
+  /comments:
+    post:
+      summary: Comment on an exercise
+      description: Allows a user to post a comment on an exercise.
+      tags:
+        - Comments
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exerciseId:
+                  type: string
+                  description: ID of the exercise to comment on
+                content:
+                  type: string
+                  description: Comment text
+              required:
+                - exerciseId
+                - content
+      responses:
+        '201':
+          description: Comment posted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commentId:
+                    type: string
+                    description: ID of the created comment
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a comment
+      description: Deletes a user's comment.
+      tags:
+        - Comments
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commentId:
+                  type: string
+                  description: ID of the comment to delete
+              required:
+                - commentId
+      responses:
+        '200':
+          description: Comment deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Comment deleted successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get comments
+      description: Retrieves comments for an exercise or a specific comment.
+      tags:
+        - Comments
+      parameters:
+        - in: query
+          name: exerciseId
+          schema:
+            type: string
+          description: ID of the exercise to fetch comments for
+        - in: query
+          name: commentId
+          schema:
+            type: string
+          description: ID of a specific comment to fetch
+      responses:
+        '200':
+          description: Comments retrieved
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+                  - $ref: '#/components/schemas/Comment'
+        '400':
+          description: Bad request (e.g., missing parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # List Endpoints
+  /lists:
+    post:
+      summary: Create a new list
+      description: Creates a new exercise list for the authenticated user.
+      tags:
+        - Lists
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Title of the list
+                description:
+                  type: string
+                  description: Description of the list
+                exerciseId:
+                  type: string
+                  description: Initial exercise ID to add
+                visibility:
+                  type: string
+                  enum: [public, private, shared]
+                  description: Visibility setting
+                sharedWith:
+                  type: array
+                  items:
+                    type: string
+                  description: User IDs to share with (for shared visibility)
+              required:
+                - title
+                - description
+                - exerciseId
+                - visibility
+      responses:
+        '201':
+          description: List created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listId:
+                    type: string
+                    description: ID of the created list
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get user's lists
+      description: Retrieves all relevant lists for the authenticated user (owned, followed, shared).
+      tags:
+        - Lists
+      security:
+        - CognitoAuthorizer: []
+      responses:
+        '200':
+          description: Lists retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    list:
+                      $ref: '#/components/schemas/List'
+                    relationship:
+                      type: string
+                      enum: [owned, following, shared]
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update a list
+      description: Updates an existing list owned by the authenticated user.
+      tags:
+        - Lists
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                listId:
+                  type: string
+                  description: ID of the list to update
+                title:
+                  type: string
+                  description: New title
+                description:
+                  type: string
+                  description: New description
+                visibility:
+                  type: string
+                  enum: [public, private, shared]
+                  description: New visibility setting
+                sharedWith:
+                  type: array
+                  items:
+                    type: string
+                  description: New list of user IDs to share with
+              required:
+                - listId
+      responses:
+        '200':
+          description: List updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'List updated successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a list
+      description: Deletes a list owned by the authenticated user.
+      tags:
+        - Lists
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                listId:
+                  type: string
+                  description: ID of the list to delete
+              required:
+                - listId
+      responses:
+        '200':
+          description: List deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'List deleted successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /lists/{listId}/exercises:
+    post:
+      summary: Add exercise to list
+      description: Adds an exercise to a list owned by the authenticated user.
+      tags:
+        - Lists
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - in: path
+          name: listId
+          required: true
+          schema:
+            type: string
+          description: ID of the list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exerciseId:
+                  type: string
+                  description: ID of the exercise to add
+              required:
+                - exerciseId
+      responses:
+        '200':
+          description: Exercise added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Exercise added to list'
+        '400':
+          description: Bad request (e.g., exercise already exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Remove exercise from list
+      description: Removes an exercise from a list owned by the authenticated user.
+      tags:
+        - Lists
+      security:
+        - CognitoAuthorizer: []
+      parameters:
+        - in: path
+          name: listId
+          required: true
+          schema:
+            type: string
+          description: ID of the list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exerciseId:
+                  type: string
+                  description: ID of the exercise to remove
+              required:
+                - exerciseId
+      responses:
+        '200':
+          description: Exercise removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Exercise removed from list'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: List not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Follower Endpoints
+  /followers:
+    post:
+      summary: Follow a user or list
+      description: Allows a user to follow another user or a list.
+      tags:
+        - Followers
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user to follow
+                listId:
+                  type: string
+                  description: ID of the list to follow
+              oneOf:
+                - required: [userId]
+                - required: [listId]
+      responses:
+        '201':
+          description: Follow action successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Followed successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Unfollow a user or list
+      description: Removes a follow relationship for a user or list.
+      tags:
+        - Followers
+      security:
+        - CognitoAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: ID of the user to unfollow
+                listId:
+                  type: string
+                  description: ID of the list to unfollow
+              oneOf:
+                - required: [userId]
+                - required: [listId]
+      responses:
+        '200':
+          description: Unfollow action successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Unfollowed successfully'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: Get followers
+      description: Retrieves followers of a user or list.
+      tags:
+        - Followers
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+          description: ID of the user to get followers for
+        - in: query
+          name: listId
+          schema:
+            type: string
+          description: ID of the list to get followers for
+      responses:
+        '200':
+          description: Followers retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Follower'
+        '400':
+          description: Bad request (e.g., missing parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    CognitoAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: cognito_user_pools
+      x-amazon-apigateway-authorizer:
+        type: cognito_user_pools
+        providerArns:
+          - arn:aws:cognito-idp:{region}:{account_id}:userpool/{user_pool_id}
+
+  schemas:
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: Unique identifier for the user
+        username:
+          type: string
+          description: Cognito username (UUID)
+        name:
+          type: string
+          description: User's display name
+        email:
+          type: string
+          format: email
+          description: User's email address
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        followerCount:
+          type: integer
+          description: Number of followers
+        profilePhotoUrl:
+          type: string
+          description: URL of the user's profile photo
+        coverPhotoUrl:
+          type: string
+          description: URL of the user's cover photo
+
+    Exercise:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the exercise
+        name:
+          type: string
+          description: Name of the exercise
+        force:
+          type: string
+          description: Type of force (e.g., pull, push)
+        level:
+          type: string
+          description: Difficulty level (e.g., beginner)
+        mechanic:
+          type: string
+          description: Mechanic type (e.g., compound)
+        equipment:
+          type: string
+          description: Required equipment (e.g., dumbbell)
+        primaryMuscles:
+          type: array
+          items:
+            type: string
+          description: Primary muscles targeted
+        secondaryMuscles:
+          type: array
+          items:
+            type: string
+          description: Secondary muscles involved
+        instructions:
+          type: array
+          items:
+            type: string
+          description: Step-by-step instructions
+        category:
+          type: string
+          description: Exercise category (e.g., strength)
+        images:
+          type: array
+          items:
+            type: string
+          description: URLs of exercise images
+
+    List:
+      type: object
+      properties:
+        listId:
+          type: string
+          description: Unique identifier for the list
+        userId:
+          type: string
+          description: ID of the owning user
+        title:
+          type: string
+          description: Title of the list
+        description:
+          type: string
+          description: Description of the list
+        exercises:
+          type: array
+          items:
+            type: string
+          description: IDs of exercises in the list
+        visibility:
+          type: string
+          enum: [public, private, shared]
+          description: Visibility setting
+        sharedWith:
+          type: array
+          items:
+            type: string
+          description: User IDs with whom the list is shared
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        followerCount:
+          type: integer
+          description: Number of followers
+
+    Comment:
+      type: object
+      properties:
+        commentId:
+          type: string
+          description: Unique identifier for the comment
+        userId:
+          type: string
+          description: ID of the commenting user
+        exerciseId:
+          type: string
+          description: ID of the exercise commented on
+        content:
+          type: string
+          description: Comment text
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+
+    Follower:
+      type: object
+      properties:
+        followerId:
+          type: string
+          description: ID of the follower
+        followingId:
+          type: string
+          description: ID of the user or list being followed
+        type:
+          type: string
+          enum: [user, list]
+          description: Type of entity being followed
+        createdAt:
+          type: string
+          format: date-time
+          description: Follow action timestamp
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        idToken:
+          type: string
+          description: JWT ID token
+        refreshToken:
+          type: string
+          description: Refresh token
+        user:
+          type: object
+          properties:
+            userId:
+              type: string
+              description: User's unique ID
+            email:
+              type: string
+              format: email
+              description: User's email
+            name:
+              type: string
+              description: User's display name
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code (optional)
