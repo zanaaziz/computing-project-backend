@@ -12,6 +12,7 @@
 		"editor.insertSpaces": false,
 		"editor.formatOnSave": true,
 		"editor.defaultFormatter": "esbenp.prettier-vscode",
-		"editor.formatOnSaveMode": "file"
+		"editor.formatOnSaveMode": "file",
+		"yaml.schemaStore.enable": false
 	}
 }
